@@ -1,0 +1,17 @@
+{
+  "name": "coloring-book-generator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local web app that generates KDP coloring-book pages and covers with OpenAI gpt-image-2 and builds the interior + cover PDFs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "pdf-lib": "^1.17.1",
+    "sharp": "^0.34.4"
+  }
+}

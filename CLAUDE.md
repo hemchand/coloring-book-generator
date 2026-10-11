@@ -1,0 +1,15 @@
+# Coloring Book Generator — project notes
+
+Goal: publish AI coloring books on Amazon KDP (~50 pages each, ~20 books/month) at minimum AI cost.
+Node web app (server.js + lib/ + public/), deps: sharp, pdf-lib. Real OpenAI API calls only — no mocks.
+
+- Pages: gpt-image-2, quality low. Default size 720x928 (smallest 8.5:11 size ≥ 655,360 px; both sides divisible by 16);
+  falls back to 1088x1408 if the API rejects the size. Pages go through the Batch API (50% off) by default.
+- Covers: draft = low, final = medium, 1088x1408. User picks one with "Use for PDF".
+- Endpoints: POST /v1/images/generations (b64_json); Batch: POST /v1/files (purpose=batch) → POST /v1/batches
+  (endpoint /v1/images/generations, 24h) → poll GET /v1/batches/{id} → GET /v1/files/{output_file_id}/content (JSONL, custom_id = page-<index>).
+- Ideas: POST /v1/responses with json_schema output (TEXT_MODEL).
+- PDFs (lib/pdf.js): interior = 300 DPI upscale + threshold, KDP gutter margin on all sides, optional blank backs;
+  cover = full wrap with 0.125" bleed, spine = pages × 0.002252" (white) / 0.0025" (cream), spine text only if > 79 pages.
+- Cost estimates: lib/cost.js (community token formula; real `usage` used when returned).
+- Output: output/<book-id>/{book.json,pages/,cover/,interior.pdf,cover.pdf}. Secrets in .env (gitignored).

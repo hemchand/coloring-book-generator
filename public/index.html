@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coloring Book Generator</title>
+<style>
+  :root { --ink:#1d1d1f; --muted:#6b6b70; --line:#e3e3e8; --bg:#f7f7f9; --card:#fff; --accent:#2f5bea; --bad:#c62828; --warn:#b26a00; --ok:#2e7d32; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:var(--bg); }
+  header { padding:18px 24px; border-bottom:1px solid var(--line); background:var(--card); display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; }
+  header .meta { color:var(--muted); font-size:13px; }
+  header select { margin-left:auto; width:auto; max-width:340px; }
+  main { max-width:1200px; margin:0 auto; padding:20px 24px 60px; display:grid; gap:20px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:18px 20px; }
+  h2 { font-size:16px; margin:0 0 12px; }
+  label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; }
+  input, textarea, select { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; }
+  textarea { min-height:160px; font-size:13px; }
+  .row { display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:12px; }
+  .row3 { display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; }
+  .actions { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; align-items:center; }
+  .check { display:flex; gap:6px; align-items:center; font-weight:400; margin:0; }
+  .check input { width:auto; }
+  button, a.button { padding:9px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; font:inherit; cursor:pointer; color:var(--ink); text-decoration:none; display:inline-block; }
+  button.primary, a.button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button:disabled { opacity:.5; cursor:default; }
+  .hint { color:var(--muted); font-size:13px; }
+  .banner { padding:10px 14px; border-radius:8px; background:#fff4e5; border:1px solid #f5c98a; }
+  .stats { display:flex; gap:18px; flex-wrap:wrap; font-size:14px; }
+  .stats b { font-variant-numeric: tabular-nums; }
+  .mode { display:flex; gap:16px; flex-wrap:wrap; margin-top:12px; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:#fafafa; }
+  .mode label { margin:0; font-weight:400; display:flex; gap:6px; align-items:center; }
+  .mode input { width:auto; }
+  .batches { margin-top:10px; font-size:13px; display:grid; gap:6px; }
+  .batches div { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap:14px; margin-top:14px; }
+  .card { border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
+  .card.flag { border-color:#f0b35a; }
+  .thumb { aspect-ratio: 8.5 / 11; background:#fafafa; display:flex; align-items:center; justify-content:center; color:var(--muted); font-size:12px; text-align:center; padding:6px; position:relative; }
+  .thumb img { width:100%; height:100%; object-fit:contain; display:block; cursor:zoom-in; }
+  .thumb.err { color:var(--bad); }
+  .badge { position:absolute; top:6px; left:6px; font-size:11px; padding:2px 6px; border-radius:6px; background:#fff4e5; color:var(--warn); border:1px solid #f5c98a; }
+  .card .body { padding:8px; display:grid; gap:6px; }
+  .card .num { font-size:12px; font-weight:600; display:flex; justify-content:space-between; gap:6px; }
+  .card .num label { margin:0; font-weight:400; display:flex; gap:4px; align-items:center; }
+  .card .num input { width:auto; }
+  .card textarea { min-height:52px; font-size:12px; padding:5px 6px; }
+  .card button { padding:5px 8px; font-size:12px; }
+  .covers { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:14px; margin-top:14px; }
+  .cover { border:2px solid transparent; border-radius:10px; padding:4px; display:grid; gap:6px; }
+  .cover.selected { border-color:var(--ok); }
+  .cover img { width:100%; border:1px solid var(--line); border-radius:8px; cursor:zoom-in; }
+  .cover .hint { display:flex; justify-content:space-between; align-items:center; }
+  .result { margin-top:12px; font-size:14px; display:grid; gap:6px; }
+  .warn { color:var(--warn); }
+  dialog { border:none; padding:0; background:transparent; max-width:92vw; max-height:92vh; }
+  dialog img { max-width:92vw; max-height:92vh; display:block; background:#fff; }
+  dialog::backdrop { background:rgba(0,0,0,.7); }
+  .hidden { display:none !important; }
+  @media (max-width:800px) { .row, .row3 { grid-template-columns:1fr 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Coloring Book Generator</h1>
+  <span class="meta" id="modelInfo"></span>
+  <select id="bookPicker" title="Open a previous book"><option value="">Open a previous book…</option></select>
+</header>
+
+<main>
+  <div id="keyBanner" class="banner hidden">
+    OpenAI API key not found. Copy <code>.env.example</code> to <code>.env</code>, paste your key, and restart <code>npm start</code>.
+  </div>
+
+  <section id="setup">
+    <h2>1 · Book setup</h2>
+    <div class="row">
+      <div>
+        <label for="theme">Book theme / prompt</label>
+        <input id="theme" placeholder="e.g. Cute dinosaurs having everyday adventures">
+      </div>
+      <div>
+        <label for="audience">Audience</label>
+        <select id="audience">
+          <option value="kids">Kids (4–8) — thick lines</option>
+          <option value="teens">Older kids / teens</option>
+          <option value="adults">Adults — detailed</option>
+        </select>
+      </div>
+      <div>
+        <label for="pageSize">Page resolution</label>
+        <select id="pageSize"></select>
+      </div>
+      <div>
+        <label for="count">Pages</label>
+        <input id="count" type="number" min="1" max="120" value="50">
+      </div>
+    </div>
+    <label for="subjects">Page subjects — one per line</label>
+    <textarea id="subjects" placeholder="A T-rex brushing its teeth&#10;A triceratops planting flowers&#10;…"></textarea>
+    <div class="actions">
+      <button id="ideasBtn">Suggest subjects with AI</button>
+      <button id="createBtn" class="primary">Create book</button>
+      <span class="hint" id="setupHint"></span>
+    </div>
+  </section>
+
+  <section id="pagesSection" class="hidden">
+    <h2>2 · Interior pages <span class="hint" id="bookIdLabel"></span></h2>
+    <div class="stats">
+      <span>Done <b id="statDone">0</b> / <b id="statTotal">0</b></span>
+      <span>In batch <b id="statBatch">0</b></span>
+      <span>Needs a look <b id="statFlag">0</b></span>
+      <span>Failed <b id="statFailed">0</b></span>
+      <span>Book spend (est.) <b id="statCost">$0.00</b></span>
+    </div>
+    <div class="mode">
+      <label><input type="radio" name="mode" value="batch" checked> <span><b>Batch — 50% off</b> · ready within 24h, usually much sooner <span class="hint" id="batchEst"></span></span></label>
+      <label><input type="radio" name="mode" value="instant"> <span><b>Instant</b> · full price, pages appear as they finish <span class="hint" id="instantEst"></span></span></label>
+    </div>
+    <div class="actions">
+      <button id="genMissingBtn" class="primary">Generate missing pages</button>
+      <button id="genSelectedBtn">Regenerate ticked pages</button>
+      <button id="stopBtn" disabled>Stop</button>
+      <label class="check hint">Parallel (instant) <input id="concurrency" type="number" min="1" max="8" value="3" style="width:60px"></label>
+      <button id="refreshBtn">Check batch status</button>
+    </div>
+    <div class="batches" id="batches"></div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section id="coverSection" class="hidden">
+    <h2>3 · Front cover</h2>
+    <div class="row3">
+      <div><label for="title">Title (printed on cover)</label><input id="title" placeholder="Dino Days Coloring Book"></div>
+      <div><label for="subtitle">Subtitle (optional)</label><input id="subtitle" placeholder="50 fun pages for kids ages 4-8"></div>
+      <div><label for="coverQuality">Quality</label>
+        <select id="coverQuality"></select>
+      </div>
+      <div><label for="coverCount">Options</label><input id="coverCount" type="number" min="1" max="4" value="1"></div>
+    </div>
+    <label for="coverNotes">Extra direction (optional)</label>
+    <input id="coverNotes" placeholder="e.g. bright green jungle background, a smiling T-rex holding crayons">
+    <div class="actions">
+      <button id="coverBtn" class="primary">Generate cover</button>
+      <span class="hint">Cheap tip: try ideas as drafts, then make one final with the wording that worked.</span>
+    </div>
+    <div class="covers" id="covers"></div>
+  </section>
+
+  <section id="pdfSection" class="hidden">
+    <h2>4 · KDP PDFs</h2>
+    <div class="row3">
+      <div><label for="trim">Trim size</label><select id="trim"></select></div>
+      <div><label for="paper">Paper (sets spine width)</label>
+        <select id="paper"><option value="white">White</option><option value="cream">Cream</option></select>
+      </div>
+      <div><label>&nbsp;</label><label class="check"><input id="blankBacks" type="checkbox" checked> Blank page behind each picture</label></div>
+      <div><label>&nbsp;</label><label class="check"><input id="cleanLines" type="checkbox" checked> Clean lines to pure black &amp; white</label></div>
+    </div>
+    <div class="actions">
+      <button id="pdfBtn" class="primary">Build interior.pdf + cover.pdf</button>
+      <span class="hint">Pages are upscaled to 300 DPI and placed inside KDP margins. The cover is a full wrap: back + spine + front, with 0.125" bleed.</span>
+    </div>
+    <div class="result" id="pdfResult"></div>
+  </section>
+</main>
+
+<dialog id="viewer"><img id="viewerImg" alt=""></dialog>
+<script src="app.js"></script>
+</body>
+</html>
