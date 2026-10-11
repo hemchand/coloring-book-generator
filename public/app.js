@@ -59,7 +59,7 @@ function renderBatches() {
 }
 
 function renderBook() {
-  for (const id of ['pagesSection', 'coverSection', 'pdfSection']) $(id).classList.remove('hidden');
+  for (const id of ['pagesSection', 'coverSection', 'pdfSection', 'listingSection']) $(id).classList.remove('hidden');
   $('bookIdLabel').textContent = `· ${book.theme} · ${book.pageSize} · saved in output/${book.id}/`;
   if (book.cover) {
     $('title').value = book.cover.title || $('title').value;
@@ -72,6 +72,7 @@ function renderBook() {
   renderCovers();
   renderBatches();
   renderPdfLinks();
+  renderListing();
   updateStats();
 }
 
@@ -259,6 +260,93 @@ $('pdfBtn').onclick = async () => {
   } catch (e) { alert(e.message); }
   finally { btn.disabled = false; btn.textContent = 'Build interior.pdf + cover.pdf'; }
 };
+
+// ---------- Amazon listing ----------
+
+const KW_MAX = 50;
+const DESC_MAX = 4000;
+
+function counter(el, len, max) {
+  el.textContent = `${len}/${max}`;
+  el.classList.toggle('over', len > max);
+}
+
+function updateDescPreview() {
+  const html = $('lDesc').value;
+  counter($('descCount'), html.length, DESC_MAX);
+  // Show only the tags KDP allows; everything else is displayed as text.
+  const safe = html.replace(/</g, '&lt;').replace(/&lt;(\/?)(p|b|i|br|ul|li)\s*\/?>/gi, '<$1$2>');
+  $('lPreview').innerHTML = safe;
+}
+
+function renderKeywordInputs(list) {
+  const wrap = $('lKeywords');
+  wrap.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const div = document.createElement('div');
+    div.innerHTML = `<span class="count">${i + 1}.</span><input maxlength="80"><span class="count"></span>`;
+    const input = div.querySelector('input');
+    const count = div.querySelectorAll('.count')[1];
+    input.value = list[i] || '';
+    const upd = () => counter(count, input.value.length, KW_MAX);
+    input.oninput = upd; upd();
+    wrap.appendChild(div);
+  }
+}
+
+function renderListing() {
+  const l = book.listing;
+  $('lTitle').value = l?.title || book.cover?.title || $('title').value || '';
+  $('lSubtitle').value = l?.subtitle ?? book.cover?.subtitle ?? '';
+  if (!l) { $('listingBody').classList.add('hidden'); return; }
+  $('listingBody').classList.remove('hidden');
+  $('lDesc').value = l.descriptionHtml || '';
+  updateDescPreview();
+  renderKeywordInputs(l.keywords || []);
+  $('lCats').value = (l.categories || []).join('\n');
+  $('listingFile').href = `/output/${book.id}/listing.txt?v=${Date.now()}`;
+  $('listingHint').textContent = l.editedAt ? `Saved ${new Date(l.editedAt).toLocaleString()}` : `Generated ${new Date(l.generatedAt).toLocaleString()}`;
+}
+
+const currentKeywords = () => [...$('lKeywords').querySelectorAll('input')].map((i) => i.value.trim()).filter(Boolean);
+
+$('lDesc').oninput = updateDescPreview;
+
+$('listingBtn').onclick = async () => {
+  const title = $('lTitle').value.trim();
+  if (!title) return alert('Enter the book title first.');
+  if (book.listing && !confirm('Replace the current description and keywords with a new version?')) return;
+  const btn = $('listingBtn');
+  btn.disabled = true; btn.textContent = 'Writing listing…';
+  try {
+    const r = await api(`/api/books/${book.id}/listing`, { title, subtitle: $('lSubtitle').value, notes: $('lNotes').value });
+    book.listing = r.listing;
+    renderListing();
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Generate description & keywords'; }
+};
+
+$('listingSaveBtn').onclick = async () => {
+  const long = currentKeywords().filter((k) => k.length > KW_MAX);
+  if (long.length) return alert(`Shorten these keywords to ${KW_MAX} characters: ${long.join(', ')}`);
+  if ($('lDesc').value.length > DESC_MAX) return alert(`The description is over ${DESC_MAX} characters.`);
+  try {
+    const r = await api(`/api/books/${book.id}/listing/save`, {
+      title: $('lTitle').value, subtitle: $('lSubtitle').value, descriptionHtml: $('lDesc').value,
+      keywords: currentKeywords(), categories: $('lCats').value.split('\n'),
+    });
+    book.listing = r.listing;
+    renderListing();
+  } catch (e) { alert(e.message); }
+};
+
+async function copy(text, btn) {
+  await navigator.clipboard.writeText(text);
+  const old = btn.textContent; btn.textContent = 'Copied ✓';
+  setTimeout(() => { btn.textContent = old; }, 1500);
+}
+$('copyDescBtn').onclick = (e) => copy($('lDesc').value, e.target);
+$('copyKwBtn').onclick = (e) => copy(currentKeywords().join('\n'), e.target);
 
 // ---------- setup ----------
 

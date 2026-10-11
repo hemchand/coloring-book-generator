@@ -31,6 +31,12 @@ Open http://localhost:3000.
    - Pages that look shaded or have big black areas get a ⚠ badge. Tick **redo**, edit the subject, and click **Regenerate ticked pages**. Batch mode is half price for redos too.
 3. **Cover:** make a few **Draft (low)** covers to find a layout you like, then one **Final (medium)**. Click **Use for PDF** on the one you want.
 4. **PDFs:** choose the trim size and paper, then click **Build interior.pdf + cover.pdf**. Both files are saved in `output/<book>/`. Upload them to KDP and say the images are AI-generated.
+5. **Amazon listing:** click **Generate description & keywords**. The text model writes:
+   - a 150–250 word description, using only the HTML tags KDP accepts
+   - 7 keywords, one per KDP box, 50 characters max, with no trademarks or promotional words
+   - 3 category suggestions
+
+   Edit anything, check the preview and character counts, then **Save edits**. The copy buttons paste straight into KDP, and everything is also saved to `output/<book>/listing.txt`. Each listing costs a fraction of a cent.
 
 ## What it costs (estimates; real numbers at platform.openai.com/usage)
 
@@ -57,5 +63,5 @@ server.js        web server, OpenAI calls, Batch API, PDF routes
 lib/cost.js      cost estimates
 lib/pdf.js       interior/cover PDF builder and line-art check
 public/          the web page
-output/<book>/   book.json, pages/, cover/, interior.pdf, cover.pdf   (not committed)
+output/<book>/   book.json, pages/, cover/, interior.pdf, cover.pdf, listing.txt   (not committed)
 ```

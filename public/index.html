@@ -58,6 +58,12 @@
   dialog { border:none; padding:0; background:transparent; max-width:92vw; max-height:92vh; }
   dialog img { max-width:92vw; max-height:92vh; display:block; background:#fff; }
   dialog::backdrop { background:rgba(0,0,0,.7); }
+  .kw { display:grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap:8px; }
+  .kw div { display:flex; gap:6px; align-items:center; }
+  .count { font-size:12px; color:var(--muted); white-space:nowrap; font-variant-numeric: tabular-nums; }
+  .count.over { color:var(--bad); font-weight:600; }
+  .preview { border:1px solid var(--line); border-radius:8px; padding:10px 14px; background:#fafafa; font-size:14px; }
+  .preview p { margin:0 0 8px; }
   .hidden { display:none !important; }
   @media (max-width:800px) { .row, .row3 { grid-template-columns:1fr 1fr; } }
 </style>
@@ -165,6 +171,35 @@
       <span class="hint">Pages are upscaled to 300 DPI and placed inside KDP margins. The cover is a full wrap: back + spine + front, with 0.125" bleed.</span>
     </div>
     <div class="result" id="pdfResult"></div>
+  </section>
+  <section id="listingSection" class="hidden">
+    <h2>5 · Amazon listing — description &amp; keywords</h2>
+    <div class="row3">
+      <div><label for="lTitle">Book title</label><input id="lTitle"></div>
+      <div><label for="lSubtitle">Subtitle</label><input id="lSubtitle" placeholder="e.g. 50 Cute Pages for Kids Ages 4-8"></div>
+      <div style="grid-column: span 2"><label for="lNotes">Notes for the writer (optional)</label><input id="lNotes" placeholder="e.g. mention it's a great birthday gift, large print"></div>
+    </div>
+    <div class="actions">
+      <button id="listingBtn" class="primary">Generate description &amp; keywords</button>
+      <span class="hint">Uses the text model (a fraction of a cent). Edit anything, then Save.</span>
+    </div>
+    <div id="listingBody" class="hidden">
+      <label for="lDesc">Description (KDP allows &lt;p&gt; &lt;b&gt; &lt;i&gt; &lt;br&gt; &lt;ul&gt; &lt;li&gt;) <span class="count" id="descCount"></span></label>
+      <textarea id="lDesc" style="min-height:200px"></textarea>
+      <label>Preview</label>
+      <div class="preview" id="lPreview"></div>
+      <label>Keywords — one per KDP box (max 50 characters each)</label>
+      <div class="kw" id="lKeywords"></div>
+      <label for="lCats">Suggested categories (one per line — pick them in KDP's category browser)</label>
+      <textarea id="lCats" style="min-height:70px"></textarea>
+      <div class="actions">
+        <button id="listingSaveBtn">Save edits</button>
+        <button id="copyDescBtn">Copy description</button>
+        <button id="copyKwBtn">Copy keywords</button>
+        <a class="button" id="listingFile" target="_blank">Open listing.txt</a>
+        <span class="hint" id="listingHint"></span>
+      </div>
+    </div>
   </section>
 </main>
 

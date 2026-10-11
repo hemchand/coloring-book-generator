@@ -221,6 +221,90 @@ async function suggestSubjects({ theme, audience, count }) {
   catch { throw new HttpError(502, 'Could not read subject list from the text model'); }
 }
 
+// ---------- Amazon listing (description + keywords) ----------
+
+const LISTING_LIMITS = { description: 4000, keyword: 50, keywords: 7, title: 200 };
+
+function responseText(json) {
+  return (json.output || []).flatMap((o) => o.content || [])
+    .filter((c) => c.type === 'output_text').map((c) => c.text).join('');
+}
+
+async function generateListing(book, { title, subtitle, notes }) {
+  const sample = book.subjects.slice(0, 15).map((s) => `- ${s}`).join('\n');
+  const json = await openaiRequest('/responses', {
+    json: {
+      model: TEXT_MODEL,
+      input: [
+        'Write the Amazon KDP listing for a paperback coloring book.',
+        `Title: ${title}`, subtitle ? `Subtitle: ${subtitle}` : '',
+        `Theme: ${book.theme}. Audience: ${book.audience === 'kids' ? 'children ages 4-8' : book.audience}.`,
+        `Coloring pages: ${book.subjects.length}, printed single-sided (one picture per sheet), 8.5 x 11 in.`,
+        `Some of the pages:\n${sample}`,
+        notes ? `Seller notes: ${notes}` : '',
+        '',
+        'Rules:',
+        `- description_html: 150-250 words, under ${LISTING_LIMITS.description} characters. Hook sentence first, then a short bulleted list of what is inside, then who it is for and gift occasions. Only use these HTML tags: <p>, <b>, <i>, <br>, <ul>, <li>.`,
+        `- keywords: exactly ${LISTING_LIMITS.keywords} search phrases a buyer would type, each under ${LISTING_LIMITS.keyword} characters, lowercase, no commas or quotes, not repeating words already in the title, no trademarked names or characters, no "amazon", "kindle", "bestseller", "free", "new" or other promotional claims.`,
+        '- categories: 3 suggested Amazon book category paths, e.g. "Children\'s Books > Activities, Crafts & Games > Activity Books > Coloring".',
+        '- Do not claim awards, sales ranks or reviews. Do not mention AI.',
+      ].filter(Boolean).join('\n'),
+      text: {
+        format: {
+          type: 'json_schema', name: 'listing', strict: true,
+          schema: {
+            type: 'object', additionalProperties: false,
+            required: ['description_html', 'keywords', 'categories'],
+            properties: {
+              description_html: { type: 'string' },
+              keywords: { type: 'array', items: { type: 'string' } },
+              categories: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+      },
+    },
+  });
+  let data;
+  try { data = JSON.parse(responseText(json)); }
+  catch { throw new HttpError(502, 'Could not read the listing from the text model'); }
+  return {
+    title, subtitle: subtitle || '',
+    descriptionHtml: cleanDescription(data.description_html),
+    keywords: cleanKeywords(data.keywords),
+    categories: data.categories.slice(0, 3),
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+// KDP descriptions accept only a few HTML tags; drop everything else (and any <script>/<style> content).
+function cleanDescription(html) {
+  return String(html || '')
+    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, '')
+    .replace(/<(?!\/?(p|b|i|br|ul|li)\s*\/?>)[^>]*>/gi, '')
+    .trim()
+    .slice(0, LISTING_LIMITS.description);
+}
+
+function cleanKeywords(list) {
+  return (list || []).map((k) => String(k).replace(/[",]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase())
+    .filter(Boolean).map((k) => k.slice(0, LISTING_LIMITS.keyword)).slice(0, LISTING_LIMITS.keywords);
+}
+
+function listingText(l) {
+  return [
+    `TITLE\n${l.title}`, l.subtitle ? `SUBTITLE\n${l.subtitle}` : '',
+    `DESCRIPTION (paste into KDP; HTML allowed)\n${l.descriptionHtml}`,
+    `KEYWORDS (one per KDP box)\n${l.keywords.map((k, i) => `${i + 1}. ${k}`).join('\n')}`,
+    `SUGGESTED CATEGORIES\n${l.categories.map((c) => `- ${c}`).join('\n')}`,
+  ].filter(Boolean).join('\n\n') + '\n';
+}
+
+async function saveListing(id, listing) {
+  await fs.writeFile(path.join(bookDir(id), 'listing.txt'), listingText(listing));
+  await updateBook(id, (b) => { b.listing = listing; });
+}
+
 // ---------- page saving (shared by instant + batch) ----------
 
 async function savePage(id, index, buffer, { cost, size }) {
@@ -515,6 +599,29 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, await loadBook(id));
     }
 
+    // Amazon listing: generate with the text model, or save the user's edits.
+    if (req.method === 'POST' && parts[3] === 'listing') {
+      const body = await readBody(req);
+      const book = normalizeBook(await readJson(path.join(dir, 'book.json')));
+      const title = (body.title || book.cover?.title || '').trim();
+      if (!title) throw new HttpError(400, 'Enter the book title first');
+      let listing;
+      if (parts[4] === 'save') {
+        listing = {
+          ...(book.listing || {}),
+          title, subtitle: (body.subtitle || '').trim(),
+          descriptionHtml: cleanDescription(body.descriptionHtml),
+          keywords: cleanKeywords(body.keywords),
+          categories: (body.categories || []).map((c) => String(c).trim()).filter(Boolean).slice(0, 3),
+          editedAt: new Date().toISOString(),
+        };
+      } else {
+        listing = await generateListing(book, { title, subtitle: body.subtitle?.trim(), notes: body.notes?.trim() });
+      }
+      await saveListing(id, listing);
+      return sendJson(res, 200, { listing, file: `/output/${id}/listing.txt` });
+    }
+
     // Build interior.pdf and (if a cover is chosen) cover.pdf.
     if (req.method === 'POST' && parts[3] === 'pdf') {
       const { trim = '8.5x11', blankBacks = true, cleanLines = true, paper = 'white' } = await readBody(req);
@@ -549,7 +656,7 @@ async function handleApi(req, res, url) {
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.json': 'application/json', '.pdf': 'application/pdf',
+  '.png': 'image/png', '.json': 'application/json', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8',
 };
 
 async function serveStatic(res, baseDir, relPath) {

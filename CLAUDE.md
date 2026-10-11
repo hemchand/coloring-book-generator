@@ -11,5 +11,7 @@ Node web app (server.js + lib/ + public/), deps: sharp, pdf-lib. Real OpenAI API
 - Ideas: POST /v1/responses with json_schema output (TEXT_MODEL).
 - PDFs (lib/pdf.js): interior = 300 DPI upscale + threshold, KDP gutter margin on all sides, optional blank backs;
   cover = full wrap with 0.125" bleed, spine = pages × 0.002252" (white) / 0.0025" (cream), spine text only if > 79 pages.
+- Listing: POST /api/books/:id/listing (TEXT_MODEL, json_schema → description_html, 7 keywords, 3 categories);
+  /listing/save stores edits. Description sanitised to KDP tags (p,b,i,br,ul,li), ≤4000 chars; keywords ≤50 chars. Written to listing.txt.
 - Cost estimates: lib/cost.js (community token formula; real `usage` used when returned).
-- Output: output/<book-id>/{book.json,pages/,cover/,interior.pdf,cover.pdf}. Secrets in .env (gitignored).
+- Output: output/<book-id>/{book.json,pages/,cover/,interior.pdf,cover.pdf,listing.txt}. Secrets in .env (gitignored).
