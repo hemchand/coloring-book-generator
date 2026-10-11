@@ -59,7 +59,7 @@ function renderBatches() {
 }
 
 function renderBook() {
-  for (const id of ['pagesSection', 'coverSection', 'pdfSection', 'listingSection']) $(id).classList.remove('hidden');
+  for (const id of ['pagesSection', 'coverSection', 'backSection', 'pdfSection', 'listingSection']) $(id).classList.remove('hidden');
   $('bookIdLabel').textContent = `· ${book.theme} · ${book.pageSize} · saved in output/${book.id}/`;
   if (book.cover) {
     $('title').value = book.cover.title || $('title').value;
@@ -73,6 +73,8 @@ function renderBook() {
   renderBatches();
   renderPdfLinks();
   renderListing();
+  renderBack();
+  $('bookStyle').value = book.styleNotes || '';
   updateStats();
 }
 
@@ -348,6 +350,50 @@ async function copy(text, btn) {
 $('copyDescBtn').onclick = (e) => copy($('lDesc').value, e.target);
 $('copyKwBtn').onclick = (e) => copy(currentKeywords().join('\n'), e.target);
 
+// ---------- style + back cover ----------
+
+$('saveStyleBtn').onclick = async (e) => {
+  try {
+    book = await api(`/api/books/${book.id}/style`, { styleNotes: $('bookStyle').value });
+    $('styleNotes').value = book.styleNotes || '';
+    e.target.textContent = 'Saved ✓'; setTimeout(() => { e.target.textContent = 'Save style'; }, 1500);
+  } catch (err) { alert(err.message); }
+};
+
+function renderBack() {
+  const b = book.backCover || {};
+  $('bHeadline').value = b.headline || '';
+  $('bSub').value = b.subheadline || '';
+  $('bTagline').value = b.tagline || '';
+  $('bBrand').value = b.brand ?? config.brandName ?? '';
+  $('bPages').value = b.pages || '';
+}
+
+$('backSuggestBtn').onclick = async (e) => {
+  const btn = e.target; btn.disabled = true; btn.textContent = 'Writing…';
+  try {
+    const r = await api(`/api/books/${book.id}/back-cover/suggest`, {});
+    book.backCover = r.backCover;
+    const keepBrand = $('bBrand').value, keepPages = $('bPages').value;
+    renderBack();
+    $('bBrand').value = keepBrand; $('bPages').value = keepPages;
+    $('backHint').textContent = 'Suggested — edit if you like, then Save back cover.';
+  } catch (err) { alert(err.message); }
+  finally { btn.disabled = false; btn.textContent = 'Suggest text with AI'; }
+};
+
+$('backSaveBtn').onclick = async () => {
+  if (!$('bHeadline').value.trim()) return alert('Add a headline (the back cover is only drawn when it has one).');
+  try {
+    const r = await api(`/api/books/${book.id}/back-cover`, {
+      headline: $('bHeadline').value, subheadline: $('bSub').value, tagline: $('bTagline').value,
+      brand: $('bBrand').value, pages: $('bPages').value,
+    });
+    book.backCover = r.backCover;
+    $('backHint').textContent = 'Saved — rebuild the PDFs (step 4) to update cover.pdf.';
+  } catch (err) { alert(err.message); }
+};
+
 // ---------- setup ----------
 
 $('ideasBtn').onclick = async () => {
@@ -373,7 +419,7 @@ $('createBtn').onclick = async () => {
     subjects = Array.from({ length: count }, (_, i) => `${theme}, scene ${i + 1}, unlike the others`);
   }
   try {
-    book = await api('/api/books', { theme, audience: $('audience').value, subjects, pageSize: $('pageSize').value });
+    book = await api('/api/books', { theme, audience: $('audience').value, subjects, pageSize: $('pageSize').value, styleNotes: $('styleNotes').value });
     renderBook();
     await refreshBookList(book.id);
     $('pagesSection').scrollIntoView({ behavior: 'smooth' });
@@ -396,6 +442,7 @@ $('bookPicker').onchange = async (e) => {
     $('audience').value = book.audience;
     $('count').value = book.subjects.length;
     $('subjects').value = book.subjects.join('\n');
+    $('styleNotes').value = book.styleNotes || '';
     renderBook();
   } catch (err) { alert(err.message); }
 };

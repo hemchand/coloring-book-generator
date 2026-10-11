@@ -33,6 +33,7 @@ const PAGE_SIZES = {
 };
 const FALLBACK_PAGE_SIZE = PAGE_SIZES.standard;
 const COVER_SIZE = process.env.COVER_SIZE || '1088x1408';
+const BRAND_NAME = process.env.BRAND_NAME || 'Annvay Publishing';
 const BATCH_POLL_MS = Number(process.env.BATCH_POLL_SECONDS || 60) * 1000;
 const OUTPUT_DIR = path.join(ROOT, 'output');
 const PUBLIC_DIR = path.join(ROOT, 'public');
@@ -129,9 +130,10 @@ const AUDIENCE_STYLE = {
   adults: 'intricate detail, fine solid outlines, decorative patterned background',
 };
 
-function pagePrompt({ theme, subject, audience }) {
+function pagePrompt({ theme, subject, audience, styleNotes }) {
   return `Coloring book page, black line art on pure white. Theme: ${theme}. Scene: ${subject}. ` +
     `Style: ${AUDIENCE_STYLE[audience] || AUDIENCE_STYLE.kids}. ` +
+    (styleNotes ? `Book style (apply to every page): ${styleNotes}. ` : '') +
     'Closed outlines only; no color, gray, shading, hatching or solid black fills. ' +
     'Whole drawing inside a wide white margin. No text, border or watermark.';
 }
@@ -291,6 +293,32 @@ function cleanKeywords(list) {
     .filter(Boolean).map((k) => k.slice(0, LISTING_LIMITS.keyword)).slice(0, LISTING_LIMITS.keywords);
 }
 
+async function suggestBackText(book) {
+  const json = await openaiRequest('/responses', {
+    json: {
+      model: TEXT_MODEL,
+      input: `Back-cover text for a printed coloring book. Theme: ${book.theme}. Audience: ${book.audience === 'kids' ? 'children ages 4-8' : book.audience}. ` +
+        `${book.subjects.length} coloring pages. Title: ${book.cover?.title || book.theme}.\n` +
+        'Write: headline (max 32 characters, e.g. "50 Animals Coloring Book"), subheadline (max 40 characters, e.g. "& Fun Facts for Kids"), ' +
+        'tagline (max 60 characters, inviting, e.g. "Discover a Colorful World of Amazing Animals"). ' +
+        'Plain words only, no emoji, no trademarked names, no claims like bestseller.',
+      text: {
+        format: {
+          type: 'json_schema', name: 'back_cover', strict: true,
+          schema: {
+            type: 'object', additionalProperties: false, required: ['headline', 'subheadline', 'tagline'],
+            properties: { headline: { type: 'string' }, subheadline: { type: 'string' }, tagline: { type: 'string' } },
+          },
+        },
+      },
+    },
+  });
+  try {
+    const d = JSON.parse(responseText(json));
+    return { headline: d.headline.slice(0, 60), subheadline: d.subheadline.slice(0, 80), tagline: d.tagline.slice(0, 90) };
+  } catch { throw new HttpError(502, 'Could not read the back-cover text from the text model'); }
+}
+
 function listingText(l) {
   return [
     `TITLE\n${l.title}`, l.subtitle ? `SUBTITLE\n${l.subtitle}` : '',
@@ -333,7 +361,7 @@ async function submitBatch(id, indices) {
     method: 'POST',
     url: '/v1/images/generations',
     body: imageBody({
-      prompt: pagePrompt({ theme: book.theme, subject: book.subjects[i], audience: book.audience }),
+      prompt: pagePrompt({ theme: book.theme, subject: book.subjects[i], audience: book.audience, styleNotes: book.styleNotes }),
       quality: PAGE_QUALITY, size: book.pageSize,
     }),
   }));
@@ -365,7 +393,7 @@ async function importBatchOutput(id, fileId, size, book) {
     const body = row.response?.body;
     const b64 = body?.data?.[0]?.b64_json;
     if (row.response?.status_code === 200 && b64) {
-      const prompt = pagePrompt({ theme: book.theme, subject: book.subjects[index], audience: book.audience });
+      const prompt = pagePrompt({ theme: book.theme, subject: book.subjects[index], audience: book.audience, styleNotes: book.styleNotes });
       const cost = estimateImageCost({ size, quality: PAGE_QUALITY, prompt, usage: body.usage, batch: true });
       await savePage(id, index, Buffer.from(b64, 'base64'), { cost, size });
       saved++;
@@ -482,7 +510,7 @@ async function handleApi(req, res, url) {
     const est = (size, quality, batch = false) =>
       estimateImageCost({ size, quality, prompt: 'x'.repeat(420), batch });
     return sendJson(res, 200, {
-      hasKey: hasKey(), imageModel: IMAGE_MODEL, textModel: TEXT_MODEL,
+      hasKey: hasKey(), brandName: BRAND_NAME, imageModel: IMAGE_MODEL, textModel: TEXT_MODEL,
       pageQuality: PAGE_QUALITY, pageSizes: PAGE_SIZES, coverSize: COVER_SIZE, trims: Object.keys(TRIMS),
       estimates: {
         page: {
@@ -506,7 +534,7 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/books') {
-    const { theme, audience = 'kids', subjects, pageSize = 'economy' } = await readBody(req);
+    const { theme, audience = 'kids', subjects, pageSize = 'economy', styleNotes = '' } = await readBody(req);
     if (!theme?.trim()) throw new HttpError(400, 'Theme is required');
     const list = (subjects || []).map((s) => String(s).trim()).filter(Boolean);
     if (!list.length) throw new HttpError(400, 'Add at least one page subject');
@@ -515,7 +543,7 @@ async function handleApi(req, res, url) {
     await fs.mkdir(path.join(dir, 'pages'), { recursive: true });
     await fs.mkdir(path.join(dir, 'cover'), { recursive: true });
     await fs.writeFile(path.join(dir, 'book.json'), JSON.stringify(normalizeBook({
-      id, theme: theme.trim(), audience, subjects: list, createdAt: new Date().toISOString(),
+      id, theme: theme.trim(), audience, subjects: list, styleNotes: String(styleNotes).trim().slice(0, 600), createdAt: new Date().toISOString(),
       imageModel: IMAGE_MODEL, pageQuality: PAGE_QUALITY, pageSize: PAGE_SIZES[pageSize] || PAGE_SIZES.economy,
     }), null, 2));
     return sendJson(res, 200, await loadBook(id));
@@ -536,7 +564,7 @@ async function handleApi(req, res, url) {
       if (pendingIndices(book).has(i)) throw new HttpError(409, 'This page is waiting in a batch');
       const subj = subject?.trim() || book.subjects[i];
       if (subj !== book.subjects[i]) await updateBook(id, (b) => { b.subjects[i] = subj; });
-      const prompt = pagePrompt({ theme: book.theme, subject: subj, audience: book.audience });
+      const prompt = pagePrompt({ theme: book.theme, subject: subj, audience: book.audience, styleNotes: book.styleNotes });
       const { buffer, usage, size } = await generateImage({ prompt, quality: PAGE_QUALITY, size: book.pageSize });
       const cost = estimateImageCost({ size, quality: PAGE_QUALITY, prompt, usage });
       const check = await savePage(id, i, buffer, { cost, size });
@@ -599,6 +627,35 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, await loadBook(id));
     }
 
+    // Book-wide style notes (used in every page prompt from now on).
+    if (req.method === 'POST' && parts[3] === 'style') {
+      const { styleNotes = '' } = await readBody(req);
+      await updateBook(id, (b) => { b.styleNotes = String(styleNotes).trim().slice(0, 600); });
+      return sendJson(res, 200, await loadBook(id));
+    }
+
+    // Back cover text: AI suggestion or saved edits.
+    if (req.method === 'POST' && parts[3] === 'back-cover') {
+      const body = await readBody(req);
+      const book = normalizeBook(await readJson(path.join(dir, 'book.json')));
+      let back;
+      if (parts[4] === 'suggest') {
+        back = { ...(book.backCover || {}), ...(await suggestBackText(book)) };
+      } else {
+        back = {
+          ...(book.backCover || {}),
+          headline: String(body.headline || '').trim().slice(0, 60),
+          subheadline: String(body.subheadline || '').trim().slice(0, 80),
+          tagline: String(body.tagline || '').trim().slice(0, 90),
+          brand: String(body.brand ?? BRAND_NAME).trim().slice(0, 60),
+          pages: String(body.pages || '').replace(/[^0-9, ]/g, '').trim(),
+        };
+      }
+      back.brand ??= BRAND_NAME;
+      await updateBook(id, (b) => { b.backCover = back; });
+      return sendJson(res, 200, { backCover: back });
+    }
+
     // Amazon listing: generate with the text model, or save the user's edits.
     if (req.method === 'POST' && parts[3] === 'listing') {
       const body = await readBody(req);
@@ -639,8 +696,18 @@ async function handleApi(req, res, url) {
       if (interior.pageCount < 24) result.warnings.push(`KDP paperbacks need at least 24 pages; this interior has ${interior.pageCount}.`);
       const selected = book.cover?.selected;
       if (selected && existsSync(path.join(dir, 'cover', selected))) {
+        const back = book.backCover?.headline ? book.backCover : null;
+        let backImages = [];
+        if (back) {
+          const wanted = String(back.pages || '').split(/[ ,]+/).map(Number).filter((n) => n >= 1)
+            .map((n) => n - 1).filter((i) => book.pages[i]?.url);
+          const auto = ready.filter((p) => !p.check?.issues?.length).map((p) => p.index);
+          const picks = [...new Set([...wanted, ...auto, ...ready.map((p) => p.index)])].slice(0, 4);
+          backImages = await Promise.all(picks.map((i) => fs.readFile(path.join(dir, 'pages', pageFile(i)))));
+        }
         const cover = await buildCoverPdf(await fs.readFile(path.join(dir, 'cover', selected)), {
           trim, pageCount: interior.pageCount, paper, title: book.cover?.title,
+          back: back ? { ...back, images: backImages } : null,
         });
         await fs.writeFile(path.join(dir, 'cover.pdf'), cover.bytes);
         result.cover = { url: `/output/${id}/cover.pdf?v=${Date.now()}`, spineIn: cover.spine, widthIn: cover.widthIn, heightIn: cover.heightIn, spineText: cover.spineText };

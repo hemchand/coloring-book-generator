@@ -25,11 +25,12 @@ Open http://localhost:3000.
 
 ## Workflow
 
-1. **Setup:** enter a theme, audience, page resolution and page count. Click **Suggest subjects with AI** or type your own subjects, one per line. Then click **Create book**.
+1. **Setup:** enter a theme, audience, page resolution and page count. Optionally add **book-wide style details**, such as "thick round lines, simple ground line, one big character per page". They're added to every page prompt, and you can change them later in step 2 for pages you generate after that. Click **Suggest subjects with AI** or type your own subjects, one per line. Then click **Create book**.
 2. **Pages:** pick **Batch (50% off)** or **Instant** and click **Generate missing pages**.
    - Batch results arrive within 24h, usually much sooner. The server checks every minute while it's running, and you can reopen the book any time from the top-right menu.
    - Pages that look shaded or have big black areas get a ⚠ badge. Tick **redo**, edit the subject, and click **Regenerate ticked pages**. Batch mode is half price for redos too.
 3. **Cover:** make a few **Draft (low)** covers to find a layout you like, then one **Final (medium)**. Click **Use for PDF** on the one you want.
+3b. **Back cover:** click **Suggest text with AI** for a headline, subheadline and tagline, or type your own. The brand defaults to `BRAND_NAME` in `.env`. Optionally choose which 4 pages to show; otherwise the app picks pages without a ⚠ badge. The back cover has the headline at the top, 4 of your real pages on tilted cards, the tagline and your brand. It uses the colour along the front cover's edge, and KDP's barcode box (bottom-right) is left empty. No image cost.
 4. **PDFs:** choose the trim size and paper, then click **Build interior.pdf + cover.pdf**. Both files are saved in `output/<book>/`. Upload them to KDP and say the images are AI-generated.
 5. **Amazon listing:** click **Generate description & keywords**. The text model writes:
    - a 150–250 word description, using only the HTML tags KDP accepts

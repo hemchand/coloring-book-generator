@@ -13,5 +13,9 @@ Node web app (server.js + lib/ + public/), deps: sharp, pdf-lib. Real OpenAI API
   cover = full wrap with 0.125" bleed, spine = pages × 0.002252" (white) / 0.0025" (cream), spine text only if > 79 pages.
 - Listing: POST /api/books/:id/listing (TEXT_MODEL, json_schema → description_html, 7 keywords, 3 categories);
   /listing/save stores edits. Description sanitised to KDP tags (p,b,i,br,ul,li), ≤4000 chars; keywords ≤50 chars. Written to listing.txt.
+- Style notes: book.styleNotes appended to every page prompt (POST /api/books/:id/style).
+- Back cover (lib/pdf.js drawBackPanel): headline/subheadline (outlined Helvetica-Bold), 2x2 tilted cards of real pages,
+  tagline, brand (BRAND_NAME, default "Annvay Publishing"); KDP barcode box 2"x1.2" bottom-right kept clear.
+  Text via POST /api/books/:id/back-cover[/suggest]; only drawn when a headline is saved.
 - Cost estimates: lib/cost.js (community token formula; real `usage` used when returned).
 - Output: output/<book-id>/{book.json,pages/,cover/,interior.pdf,cover.pdf,listing.txt}. Secrets in .env (gitignored).

@@ -104,6 +104,8 @@
         <input id="count" type="number" min="1" max="120" value="50">
       </div>
     </div>
+    <label for="styleNotes">Book-wide style details (optional, applied to every page)</label>
+    <input id="styleNotes" placeholder="e.g. thick round lines, simple ground line, one large character per page, no background clutter, kawaii style">
     <label for="subjects">Page subjects — one per line</label>
     <textarea id="subjects" placeholder="A T-rex brushing its teeth&#10;A triceratops planting flowers&#10;…"></textarea>
     <div class="actions">
@@ -133,6 +135,10 @@
       <label class="check hint">Parallel (instant) <input id="concurrency" type="number" min="1" max="8" value="3" style="width:60px"></label>
       <button id="refreshBtn">Check batch status</button>
     </div>
+    <div class="actions">
+      <label class="check" style="flex:1;min-width:280px">Style details <input id="bookStyle" style="flex:1" placeholder="applied to every page generated from now on"></label>
+      <button id="saveStyleBtn">Save style</button>
+    </div>
     <div class="batches" id="batches"></div>
     <div class="grid" id="grid"></div>
   </section>
@@ -154,6 +160,24 @@
       <span class="hint">Cheap tip: try ideas as drafts, then make one final with the wording that worked.</span>
     </div>
     <div class="covers" id="covers"></div>
+  </section>
+
+  <section id="backSection" class="hidden">
+    <h2>3b · Back cover</h2>
+    <p class="hint" style="margin:0">Built from your own pages: headline and subheadline at the top, 4 pages on tilted cards, a tagline and your brand. It uses the colour along the front cover's edge. KDP's barcode box (bottom-right) is left empty. No image cost.</p>
+    <div class="row3">
+      <div><label for="bHeadline">Headline</label><input id="bHeadline" maxlength="60" placeholder="50 Animals Coloring Book"></div>
+      <div><label for="bSub">Subheadline</label><input id="bSub" maxlength="80" placeholder="& Fun Facts for Kids"></div>
+      <div><label for="bBrand">Brand</label><input id="bBrand" maxlength="60"></div>
+      <div><label for="bPages">Pages to show (blank = auto)</label><input id="bPages" placeholder="e.g. 3, 8, 15, 22"></div>
+    </div>
+    <label for="bTagline">Tagline (bottom)</label>
+    <input id="bTagline" maxlength="90" placeholder="Discover a Colorful World of Amazing Animals">
+    <div class="actions">
+      <button id="backSuggestBtn">Suggest text with AI</button>
+      <button id="backSaveBtn" class="primary">Save back cover</button>
+      <span class="hint" id="backHint">Rebuild the PDFs (step 4) to see it in cover.pdf.</span>
+    </div>
   </section>
 
   <section id="pdfSection" class="hidden">
