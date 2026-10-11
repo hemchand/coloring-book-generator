@@ -8,7 +8,7 @@ Node web app (server.js + lib/ + public/), deps: sharp, pdf-lib. Real OpenAI API
 - Covers: draft = low, final = medium, 1088x1408. User picks one with "Use for PDF".
 - Endpoints: POST /v1/images/generations (b64_json); Batch: POST /v1/files (purpose=batch) → POST /v1/batches
   (endpoint /v1/images/generations, 24h) → poll GET /v1/batches/{id} → GET /v1/files/{output_file_id}/content (JSONL, custom_id = page-<index>).
-- Ideas: POST /v1/responses with json_schema output (TEXT_MODEL).
+- Ideas: POST /v1/responses with json_schema output (TEXT_MODEL); /api/ideas takes styleNotes so subjects fit the book-wide style.
 - PDFs (lib/pdf.js): interior = 300 DPI upscale + threshold, KDP gutter margin on all sides, optional blank backs;
   cover = full wrap with 0.125" bleed, spine = pages × 0.002252" (white) / 0.0025" (cream), spine text only if > 79 pages.
 - Listing: POST /api/books/:id/listing (TEXT_MODEL, json_schema → description_html, 7 keywords, 3 categories);

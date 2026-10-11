@@ -25,7 +25,7 @@ Open http://localhost:3000.
 
 ## Workflow
 
-1. **Setup:** enter a theme, audience, page resolution and page count. Optionally add **book-wide style details**, such as "thick round lines, simple ground line, one big character per page". They're added to every page prompt, and you can change them later in step 2 for pages you generate after that. Click **Suggest subjects with AI** or type your own subjects, one per line. Then click **Create book**.
+1. **Setup:** enter a theme, audience, page resolution and page count. Optionally add **book-wide style details**, such as "thick round lines, simple ground line, one big character per page". They're added to every page prompt, and you can change them later in step 2 for pages you generate after that. Click **Suggest subjects with AI** (it uses your theme, audience and style details) or type your own subjects, one per line. Then click **Create book**.
 2. **Pages:** pick **Batch (50% off)** or **Instant** and click **Generate missing pages**.
    - Batch results arrive within 24h, usually much sooner. The server checks every minute while it's running, and you can reopen the book any time from the top-right menu.
    - Pages that look shaded or have big black areas get a ⚠ badge. Tick **redo**, edit the subject, and click **Regenerate ticked pages**. Batch mode is half price for redos too.

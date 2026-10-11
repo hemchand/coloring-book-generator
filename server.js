@@ -200,12 +200,18 @@ async function generateImage({ prompt, quality, size }) {
   return { buffer: Buffer.from(b64, 'base64'), usage: json.usage || null, size: usedSize };
 }
 
-async function suggestSubjects({ theme, audience, count }) {
+async function suggestSubjects({ theme, audience, count, styleNotes = '' }) {
   const json = await openaiRequest('/responses', {
     json: {
       model: TEXT_MODEL,
       input: `Coloring book about "${theme}" for ${audience}. List exactly ${count} distinct page subjects, ` +
-        'each one short sentence describing one scene that works as black-and-white line art. Vary characters, settings and actions.',
+        'each one short sentence describing one scene that works as black-and-white line art. Vary characters, settings and actions.' +
+        (styleNotes
+          ? ` Every page will be drawn with this book-wide style: "${styleNotes}". Choose scenes that suit it and respect it ` +
+            '(e.g. if it asks for one big character per page, describe one main character; if it asks for minimal backgrounds, ' +
+            "don't describe busy settings; if it names an art style, pick subjects that work in that style). " +
+            "Describe only what is in each scene; don't repeat the style words in every line."
+          : ''),
       text: {
         format: {
           type: 'json_schema', name: 'subjects', strict: true,
@@ -523,10 +529,11 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/ideas') {
-    const { theme, audience = 'kids', count = 50 } = await readBody(req);
+    const { theme, audience = 'kids', count = 50, styleNotes = '' } = await readBody(req);
     if (!theme?.trim()) throw new HttpError(400, 'Theme is required');
     const n = Math.min(Math.max(Number(count) || 50, 1), 120);
-    return sendJson(res, 200, { subjects: await suggestSubjects({ theme: theme.trim(), audience, count: n }) });
+    const style = String(styleNotes).trim().slice(0, 600);
+    return sendJson(res, 200, { subjects: await suggestSubjects({ theme: theme.trim(), audience, count: n, styleNotes: style }) });
   }
 
   if (req.method === 'GET' && url.pathname === '/api/books') {

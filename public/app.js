@@ -402,7 +402,7 @@ $('ideasBtn').onclick = async () => {
   const btn = $('ideasBtn');
   btn.disabled = true; $('setupHint').textContent = 'Asking the text model for page ideas…';
   try {
-    const r = await api('/api/ideas', { theme, audience: $('audience').value, count: Number($('count').value) || 50 });
+    const r = await api('/api/ideas', { theme, audience: $('audience').value, count: Number($('count').value) || 50, styleNotes: $('styleNotes').value });
     $('subjects').value = r.subjects.join('\n');
     $('setupHint').textContent = `${r.subjects.length} subjects suggested — edit freely before creating the book.`;
   } catch (e) { $('setupHint').textContent = ''; alert(e.message); }
