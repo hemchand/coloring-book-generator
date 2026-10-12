@@ -64,15 +64,35 @@
   .count.over { color:var(--bad); font-weight:600; }
   .preview { border:1px solid var(--line); border-radius:8px; padding:10px 14px; background:#fafafa; font-size:14px; }
   .preview p { margin:0 0 8px; }
+  header a.brand { color:inherit; text-decoration:none; }
+  .nav a { color:var(--muted); text-decoration:none; font-size:14px; }
+  .nav a.active { color:var(--ink); font-weight:600; }
+  #newBookBtn { margin-left:auto; }
+  button.danger { color:var(--bad); border-color:#efc2c2; }
+  .listhead { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  .tablewrap { overflow-x:auto; margin-top:14px; }
+  table.books { width:100%; border-collapse:collapse; font-size:14px; }
+  table.books th { text-align:left; font-size:12px; color:var(--muted); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  table.books td { padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  table.books td a.title { font-weight:600; color:var(--accent); text-decoration:none; }
+  table.books td a.title:hover { text-decoration:underline; }
+  table.books .sub { color:var(--muted); font-size:12px; margin-top:2px; }
+  table.books .num { font-variant-numeric: tabular-nums; white-space:nowrap; }
+  .pill { display:inline-block; font-size:11px; padding:2px 7px; border-radius:10px; background:#eef0f4; color:var(--muted); margin-right:4px; white-space:nowrap; }
+  .pill.ok { background:#e6f4ea; color:var(--ok); }
+  .pill.wait { background:#fff4e5; color:var(--warn); }
   .hidden { display:none !important; }
   @media (max-width:800px) { .row, .row3 { grid-template-columns:1fr 1fr; } }
 </style>
 </head>
 <body>
 <header>
-  <h1>Coloring Book Generator</h1>
+  <h1><a href="#/" class="brand">Coloring Book Generator</a></h1>
+  <nav class="nav">
+    <a href="#/" id="navBooks">My books</a>
+  </nav>
   <span class="meta" id="modelInfo"></span>
-  <select id="bookPicker" title="Open a previous book"><option value="">Open a previous book…</option></select>
+  <a href="#/new" class="button primary" id="newBookBtn">+ New Book</a>
 </header>
 
 <main>
@@ -80,8 +100,36 @@
     OpenAI API key not found. Copy <code>.env.example</code> to <code>.env</code>, paste your key, and restart <code>npm start</code>.
   </div>
 
-  <section id="setup">
+  <section id="booksView" class="hidden">
+    <div class="listhead">
+      <h2 style="margin:0">My books</h2>
+      <input id="bookSearch" placeholder="Search by name or theme…" style="max-width:280px">
+    </div>
+    <div id="booksEmpty" class="hint hidden" style="margin-top:12px">No books yet. Click <b>+ New Book</b> to start one.</div>
+    <div class="tablewrap">
+      <table class="books" id="booksTable">
+        <thead><tr><th>Book</th><th>Audience</th><th>Pages</th><th>Cover</th><th>PDFs</th><th>Listing</th><th>Spend (est.)</th><th>Created</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="bookHeader" class="hidden">
+    <div class="listhead">
+      <a href="#/" class="hint">← All books</a>
+      <button id="deleteBookBtn" class="danger">Delete book</button>
+    </div>
+    <div class="row3" style="align-items:end">
+      <div style="grid-column: span 2"><label for="bookNameEdit">Book name / title</label><input id="bookNameEdit" maxlength="200"></div>
+      <div><button id="renameBtn">Save name</button></div>
+    </div>
+    <p class="hint" id="bookMeta" style="margin:10px 0 0"></p>
+  </section>
+
+  <section id="setup" class="hidden">
     <h2>1 · Book setup</h2>
+    <label for="bookName">Book name / title</label>
+    <input id="bookName" maxlength="200" placeholder="e.g. Dino Days Coloring Book for Kids Ages 4-8">
     <div class="row">
       <div>
         <label for="theme">Book theme / prompt</label>

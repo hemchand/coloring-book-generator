@@ -94,6 +94,10 @@ async function updateBook(id, fn) {
   } finally { release(); }
 }
 
+function bookName(b) {
+  return (b.name || b.cover?.title || b.theme || '').trim();
+}
+
 // Older books (created before batch/PDF support) get the new fields.
 function normalizeBook(b) {
   b.pageSize ||= FALLBACK_PAGE_SIZE;
@@ -304,7 +308,7 @@ async function suggestBackText(book) {
     json: {
       model: TEXT_MODEL,
       input: `Back-cover text for a printed coloring book. Theme: ${book.theme}. Audience: ${book.audience === 'kids' ? 'children ages 4-8' : book.audience}. ` +
-        `${book.subjects.length} coloring pages. Title: ${book.cover?.title || book.theme}.\n` +
+        `${book.subjects.length} coloring pages. Title: ${book.cover?.title || bookName(book)}.\n` +
         'Write: headline (max 32 characters, e.g. "50 Animals Coloring Book"), subheadline (max 40 characters, e.g. "& Fun Facts for Kids"), ' +
         'tagline (max 60 characters, inviting, e.g. "Discover a Colorful World of Amazing Animals"). ' +
         'Plain words only, no emoji, no trademarked names, no claims like bestseller.',
@@ -475,7 +479,19 @@ async function listBooks() {
   const ids = (await fs.readdir(OUTPUT_DIR)).filter((n) => existsSync(path.join(OUTPUT_DIR, n, 'book.json')));
   const books = await Promise.all(ids.map(async (id) => {
     const b = await readJson(path.join(OUTPUT_DIR, id, 'book.json'));
-    return { id, theme: b.theme, createdAt: b.createdAt, pageCount: b.subjects.length };
+    const pagesDir = path.join(OUTPUT_DIR, id, 'pages');
+    const done = existsSync(pagesDir) ? (await fs.readdir(pagesDir)).filter((f) => /^page-\d+\.png$/.test(f)).length : 0;
+    const spend = b.spend || {};
+    return {
+      id, name: bookName(b), theme: b.theme, audience: b.audience, createdAt: b.createdAt,
+      pageCount: b.subjects.length, pagesDone: done,
+      batchPending: (b.batches || []).some((x) => !x.done),
+      coverSelected: Boolean(b.cover?.selected),
+      interiorPdf: existsSync(path.join(OUTPUT_DIR, id, 'interior.pdf')),
+      coverPdf: existsSync(path.join(OUTPUT_DIR, id, 'cover.pdf')),
+      listing: Boolean(b.listing),
+      spend: +((spend.pages || 0) + (spend.covers || 0) + (spend.ideas || 0)).toFixed(4),
+    };
   }));
   return books.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
@@ -504,6 +520,7 @@ async function loadBook(id) {
     cover: existsSync(path.join(dir, 'cover.pdf')) ? `/output/${id}/cover.pdf` : null,
   };
   book.spend.total = +(book.spend.pages + book.spend.covers + book.spend.ideas).toFixed(4);
+  book.name = bookName(book);
   return book;
 }
 
@@ -541,16 +558,17 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === 'POST' && url.pathname === '/api/books') {
-    const { theme, audience = 'kids', subjects, pageSize = 'economy', styleNotes = '' } = await readBody(req);
+    const { name = '', theme, audience = 'kids', subjects, pageSize = 'economy', styleNotes = '' } = await readBody(req);
     if (!theme?.trim()) throw new HttpError(400, 'Theme is required');
+    const bookTitle = String(name).trim().slice(0, 200) || theme.trim();
     const list = (subjects || []).map((s) => String(s).trim()).filter(Boolean);
     if (!list.length) throw new HttpError(400, 'Add at least one page subject');
-    const id = `${slugify(theme)}-${timestamp()}`;
+    const id = `${slugify(bookTitle)}-${timestamp()}`;
     const dir = path.join(OUTPUT_DIR, id);
     await fs.mkdir(path.join(dir, 'pages'), { recursive: true });
     await fs.mkdir(path.join(dir, 'cover'), { recursive: true });
     await fs.writeFile(path.join(dir, 'book.json'), JSON.stringify(normalizeBook({
-      id, theme: theme.trim(), audience, subjects: list, styleNotes: String(styleNotes).trim().slice(0, 600), createdAt: new Date().toISOString(),
+      id, name: bookTitle, theme: theme.trim(), audience, subjects: list, styleNotes: String(styleNotes).trim().slice(0, 600), createdAt: new Date().toISOString(),
       imageModel: IMAGE_MODEL, pageQuality: PAGE_QUALITY, pageSize: PAGE_SIZES[pageSize] || PAGE_SIZES.economy,
     }), null, 2));
     return sendJson(res, 200, await loadBook(id));
@@ -561,6 +579,28 @@ async function handleApi(req, res, url) {
     const dir = bookDir(id);
 
     if (req.method === 'GET' && parts.length === 3) return sendJson(res, 200, await loadBook(id));
+
+    // Rename the book.
+    if (req.method === 'POST' && parts[3] === 'meta') {
+      const { name } = await readBody(req);
+      const n = String(name || '').trim().slice(0, 200);
+      if (!n) throw new HttpError(400, 'Book name cannot be empty');
+      await updateBook(id, (b) => { b.name = n; });
+      return sendJson(res, 200, await loadBook(id));
+    }
+
+    // Delete the book folder. Running batches are cancelled first so they stop billing.
+    if (req.method === 'DELETE' && parts.length === 3) {
+      const book = normalizeBook(await readJson(path.join(dir, 'book.json')));
+      const warnings = [];
+      for (const b of book.batches.filter((x) => !x.done)) {
+        try { await openaiRequest(`/batches/${encodeURIComponent(b.id)}/cancel`, {}); }
+        catch (e) { warnings.push(`Could not cancel batch ${b.id}: ${e.message}`); }
+      }
+      await fs.rm(dir, { recursive: true, force: true });
+      locks.delete(id);
+      return sendJson(res, 200, { deleted: id, warnings });
+    }
 
     // Instant generation of one page (full price).
     if (req.method === 'POST' && parts[3] === 'pages') {
@@ -667,7 +707,7 @@ async function handleApi(req, res, url) {
     if (req.method === 'POST' && parts[3] === 'listing') {
       const body = await readBody(req);
       const book = normalizeBook(await readJson(path.join(dir, 'book.json')));
-      const title = (body.title || book.cover?.title || '').trim();
+      const title = (body.title || book.cover?.title || bookName(book)).trim();
       if (!title) throw new HttpError(400, 'Enter the book title first');
       let listing;
       if (parts[4] === 'save') {

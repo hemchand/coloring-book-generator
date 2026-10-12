@@ -25,9 +25,11 @@ Open http://localhost:3000.
 
 ## Workflow
 
-1. **Setup:** enter a theme, audience, page resolution and page count. Optionally add **book-wide style details**, such as "thick round lines, simple ground line, one big character per page". They're added to every page prompt, and you can change them later in step 2 for pages you generate after that. Click **Suggest subjects with AI** (it uses your theme, audience and style details) or type your own subjects, one per line. Then click **Create book**.
+The app opens on **My books**, a table of every book with its page progress, chosen cover, built PDFs, listing status and estimated spend. Click a title to open the book, use **Delete** to remove it (its folder in `output/` is deleted, and any running batch is cancelled first), or click **+ New Book** in the top bar to start a new one.
+
+1. **Setup:** enter the **book name / title**, which is also used as the cover and listing title and can be renamed later on the book screen. Then enter a theme, audience, page resolution and page count. Optionally add **book-wide style details**, such as "thick round lines, simple ground line, one big character per page". They're added to every page prompt, and you can change them later in step 2 for pages you generate after that. Click **Suggest subjects with AI** (it uses your theme, audience and style details) or type your own subjects, one per line. Then click **Create book**.
 2. **Pages:** pick **Batch (50% off)** or **Instant** and click **Generate missing pages**.
-   - Batch results arrive within 24h, usually much sooner. The server checks every minute while it's running, and you can reopen the book any time from the top-right menu.
+   - Batch results arrive within 24h, usually much sooner. The server checks every minute while it's running, and you can reopen the book any time from My books.
    - Pages that look shaded or have big black areas get a ⚠ badge. Tick **redo**, edit the subject, and click **Regenerate ticked pages**. Batch mode is half price for redos too.
 3. **Cover:** make a few **Draft (low)** covers to find a layout you like, then one **Final (medium)**. Click **Use for PDF** on the one you want.
 3b. **Back cover:** click **Suggest text with AI** for a headline, subheadline and tagline, or type your own. The brand defaults to `BRAND_NAME` in `.env`. Optionally choose which 4 pages to show; otherwise the app picks pages without a ⚠ badge. The back cover has the headline at the top, 4 of your real pages on tilted cards, the tagline and your brand. It uses the colour along the front cover's edge, and KDP's barcode box (bottom-right) is left empty. No image cost.

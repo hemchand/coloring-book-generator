@@ -59,10 +59,14 @@ function renderBatches() {
 }
 
 function renderBook() {
-  for (const id of ['pagesSection', 'coverSection', 'backSection', 'pdfSection', 'listingSection']) $(id).classList.remove('hidden');
+  for (const id of BOOK_SECTIONS) $(id).classList.remove('hidden');
+  $('bookNameEdit').value = book.name || '';
+  $('bookMeta').textContent = `Theme: ${book.theme} · ${AUDIENCE_LABEL[book.audience] || book.audience} · ${book.subjects.length} pages · ${book.pageSize} · created ${new Date(book.createdAt).toLocaleDateString()}${book.styleNotes ? ` · style: ${book.styleNotes}` : ''}`;
+  document.title = `${book.name} · Coloring Book Generator`;
   $('bookIdLabel').textContent = `· ${book.theme} · ${book.pageSize} · saved in output/${book.id}/`;
+  $('title').value = book.name || '';
   if (book.cover) {
-    $('title').value = book.cover.title || $('title').value;
+    $('title').value = book.cover.title || book.name || '';
     $('subtitle').value = book.cover.subtitle || '';
     $('coverNotes').value = book.cover.notes || '';
   }
@@ -298,7 +302,7 @@ function renderKeywordInputs(list) {
 
 function renderListing() {
   const l = book.listing;
-  $('lTitle').value = l?.title || book.cover?.title || $('title').value || '';
+  $('lTitle').value = l?.title || book.cover?.title || book.name || '';
   $('lSubtitle').value = l?.subtitle ?? book.cover?.subtitle ?? '';
   if (!l) { $('listingBody').classList.add('hidden'); return; }
   $('listingBody').classList.remove('hidden');
@@ -419,33 +423,127 @@ $('createBtn').onclick = async () => {
     subjects = Array.from({ length: count }, (_, i) => `${theme}, scene ${i + 1}, unlike the others`);
   }
   try {
-    book = await api('/api/books', { theme, audience: $('audience').value, subjects, pageSize: $('pageSize').value, styleNotes: $('styleNotes').value });
-    renderBook();
-    await refreshBookList(book.id);
-    $('pagesSection').scrollIntoView({ behavior: 'smooth' });
+    const created = await api('/api/books', { name: $('bookName').value, theme, audience: $('audience').value, subjects, pageSize: $('pageSize').value, styleNotes: $('styleNotes').value });
+    location.hash = `#/book/${created.id}`;
   } catch (e) { alert(e.message); }
 };
 
-async function refreshBookList(selectId = '') {
-  const { books } = await api('/api/books');
-  const picker = $('bookPicker');
-  picker.innerHTML = '<option value="">Open a previous book…</option>' + books.map((b) =>
-    `<option value="${b.id}">${b.theme.replace(/</g, '&lt;')} · ${b.pageCount} pages · ${b.createdAt.slice(0, 10)}</option>`).join('');
-  picker.value = selectId;
+// ---------- books list, routing, delete ----------
+
+const BOOK_SECTIONS = ['bookHeader', 'pagesSection', 'coverSection', 'backSection', 'pdfSection', 'listingSection'];
+const ALL_VIEWS = ['booksView', 'setup', ...BOOK_SECTIONS];
+const AUDIENCE_LABEL = { kids: 'Kids 4–8', teens: 'Teens', adults: 'Adults' };
+let allBooks = [];
+let currentHash = location.hash;
+
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function showOnly(ids) {
+  for (const id of ALL_VIEWS) $(id).classList.toggle('hidden', !ids.includes(id));
+  $('navBooks').classList.toggle('active', ids.includes('booksView'));
+  window.scrollTo(0, 0);
 }
 
-$('bookPicker').onchange = async (e) => {
-  if (!e.target.value || running) return;
+function renderBooksTable() {
+  const q = $('bookSearch').value.trim().toLowerCase();
+  const rows = allBooks.filter((b) => !q || `${b.name} ${b.theme}`.toLowerCase().includes(q));
+  $('booksEmpty').classList.toggle('hidden', allBooks.length > 0);
+  $('booksTable').classList.toggle('hidden', !allBooks.length);
+  $('booksTable').querySelector('tbody').innerHTML = rows.map((b) => {
+    const pages = b.pagesDone >= b.pageCount ? `<span class="pill ok">${b.pagesDone}/${b.pageCount}</span>`
+      : `<span class="pill">${b.pagesDone}/${b.pageCount}</span>`;
+    return `<tr>
+      <td><a class="title" href="#/book/${esc(b.id)}">${esc(b.name)}</a><div class="sub">${esc(b.theme)}</div></td>
+      <td>${esc(AUDIENCE_LABEL[b.audience] || b.audience || '')}</td>
+      <td class="num">${pages}${b.batchPending ? '<span class="pill wait">batch running</span>' : ''}</td>
+      <td>${b.coverSelected ? '<span class="pill ok">chosen</span>' : '<span class="pill">—</span>'}</td>
+      <td>${b.interiorPdf ? '<span class="pill ok">interior</span>' : ''}${b.coverPdf ? '<span class="pill ok">cover</span>' : ''}${!b.interiorPdf && !b.coverPdf ? '<span class="pill">—</span>' : ''}</td>
+      <td>${b.listing ? '<span class="pill ok">ready</span>' : '<span class="pill">—</span>'}</td>
+      <td class="num">${money(b.spend)}</td>
+      <td class="num">${esc(new Date(b.createdAt).toLocaleDateString())}</td>
+      <td><button class="danger" data-delete="${esc(b.id)}">Delete</button></td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="9" class="hint">No books match “${esc(q)}”.</td></tr>`;
+  for (const btn of $('booksTable').querySelectorAll('[data-delete]')) {
+    btn.onclick = () => deleteBook(btn.dataset.delete);
+  }
+}
+
+async function showBooks() {
+  showOnly(['booksView']);
+  document.title = 'My books · Coloring Book Generator';
+  book = null;
+  try { allBooks = (await api('/api/books')).books; } catch (e) { alert(e.message); allBooks = []; }
+  renderBooksTable();
+}
+
+function showNewBook() {
+  showOnly(['setup']);
+  document.title = 'New book · Coloring Book Generator';
+  book = null;
+  for (const id of ['bookName', 'theme', 'styleNotes', 'subjects']) $(id).value = '';
+  $('audience').value = 'kids';
+  $('pageSize').value = 'economy';
+  $('count').value = 50;
+  $('setupHint').textContent = '';
+  $('bookName').focus();
+}
+
+async function showBook(id) {
   try {
-    book = await api(`/api/books/${e.target.value}/refresh`, {}).catch(() => api(`/api/books/${e.target.value}`));
-    $('theme').value = book.theme;
-    $('audience').value = book.audience;
-    $('count').value = book.subjects.length;
-    $('subjects').value = book.subjects.join('\n');
-    $('styleNotes').value = book.styleNotes || '';
-    renderBook();
+    book = await api(`/api/books/${id}/refresh`, {}).catch(() => api(`/api/books/${id}`));
+  } catch (e) {
+    alert(`Couldn't open that book: ${e.message}`);
+    location.hash = '#/';
+    return;
+  }
+  showOnly(BOOK_SECTIONS);
+  renderBook();
+}
+
+async function deleteBook(id) {
+  const b = allBooks.find((x) => x.id === id) || (book?.id === id ? book : null);
+  const name = b?.name || id;
+  if (!confirm(`Delete "${name}"?\n\nThis permanently removes its pages, covers, PDFs and listing from the output folder. Running batches are cancelled. This can't be undone.`)) return;
+  try {
+    const res = await fetch(`/api/books/${id}`, { method: 'DELETE' });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    if (json.warnings?.length) alert(json.warnings.join('\n'));
+    if (location.hash === '#/' || location.hash === '') await showBooks();
+    else location.hash = '#/';
+  } catch (e) { alert(e.message); }
+}
+
+$('bookSearch').oninput = renderBooksTable;
+$('deleteBookBtn').onclick = () => book && deleteBook(book.id);
+$('renameBtn').onclick = async (e) => {
+  const name = $('bookNameEdit').value.trim();
+  if (!name) return alert('Book name cannot be empty.');
+  try {
+    book = await api(`/api/books/${book.id}/meta`, { name });
+    document.title = `${book.name} · Coloring Book Generator`;
+    e.target.textContent = 'Saved ✓'; setTimeout(() => { e.target.textContent = 'Save name'; }, 1500);
   } catch (err) { alert(err.message); }
 };
+
+async function route() {
+  if (running && location.hash !== currentHash) {
+    if (!confirm('Pages are still generating (instant mode). Stop and leave this book?')) {
+      history.replaceState(null, '', currentHash || '#/');
+      return;
+    }
+    stopRequested = true;
+  }
+  currentHash = location.hash;
+  clearInterval(pollTimer);
+  const h = location.hash.replace(/^#/, '') || '/';
+  const m = h.match(/^\/book\/([a-z0-9-]+)$/);
+  if (h === '/new') showNewBook();
+  else if (m) await showBook(m[1]);
+  else await showBooks();
+}
+window.addEventListener('hashchange', route);
 
 (async function init() {
   config = await api('/api/config');
@@ -459,5 +557,5 @@ $('bookPicker').onchange = async (e) => {
     `<option value="medium">Final (medium) ≈ ${money(e.cover.medium)}</option>`;
   $('trim').innerHTML = config.trims.map((t) => `<option value="${t}">${t.replace('x', ' × ')} in</option>`).join('');
   if (!config.hasKey) $('keyBanner').classList.remove('hidden');
-  await refreshBookList();
+  await route();
 })();

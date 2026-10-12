@@ -17,5 +17,7 @@ Node web app (server.js + lib/ + public/), deps: sharp, pdf-lib. Real OpenAI API
 - Back cover (lib/pdf.js drawBackPanel): headline/subheadline (outlined Helvetica-Bold), 2x2 tilted cards of real pages,
   tagline, brand (BRAND_NAME, default "Annvay Publishing"); KDP barcode box 2"x1.2" bottom-right kept clear.
   Text via POST /api/books/:id/back-cover[/suggest]; only drawn when a headline is saved.
+- Books: book.name (fallback cover.title → theme); GET /api/books lists status per book; POST /api/books/:id/meta renames;
+  DELETE /api/books/:id cancels pending batches then removes the folder. UI is hash-routed: #/ list, #/new, #/book/<id>.
 - Cost estimates: lib/cost.js (community token formula; real `usage` used when returned).
 - Output: output/<book-id>/{book.json,pages/,cover/,interior.pdf,cover.pdf,listing.txt}. Secrets in .env (gitignored).
