@@ -14,7 +14,8 @@ Node web app (server.js + lib/ + public/), deps: sharp, pdf-lib. Real OpenAI API
 - Listing: POST /api/books/:id/listing (TEXT_MODEL, json_schema → description_html, 7 keywords, 3 categories);
   /listing/save stores edits. Description sanitised to KDP tags (p,b,i,br,ul,li), ≤4000 chars; keywords ≤50 chars. Written to listing.txt.
 - Style notes: book.styleNotes appended to every page prompt (POST /api/books/:id/style).
-- Back cover (lib/pdf.js drawBackPanel): headline/subheadline (outlined Helvetica-Bold), 2x2 tilted cards of real pages,
+- Fonts: all PDF text uses lib/fonts/Fredoka-Bold.ttf embedded via @pdf-lib/fontkit (KDP flags non-embedded standard-14 fonts like Helvetica).
+- Back cover (lib/pdf.js drawBackPanel): headline/subheadline (outlined Fredoka Bold), 2x2 tilted cards of real pages,
   tagline, brand (BRAND_NAME, default "Annvay Publishing"); KDP barcode box 2"x1.2" bottom-right kept clear.
   Text via POST /api/books/:id/back-cover[/suggest]; only drawn when a headline is saved.
 - Books: book.name (fallback cover.title → theme); GET /api/books lists status per book; POST /api/books/:id/meta renames;

@@ -65,6 +65,7 @@ Per-image estimates use the community-measured gpt-image-2 token formula (`lib/c
 server.js        web server, OpenAI calls, Batch API, PDF routes
 lib/cost.js      cost estimates
 lib/pdf.js       interior/cover PDF builder and line-art check
+lib/fonts/       Fredoka Bold (SIL Open Font License), embedded in cover PDFs
 public/          the web page
 output/<book>/   book.json, pages/, cover/, interior.pdf, cover.pdf, listing.txt   (not committed)
 ```
