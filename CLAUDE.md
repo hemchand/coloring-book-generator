@@ -20,5 +20,7 @@ Node web app (server.js + lib/ + public/), deps: sharp, pdf-lib. Real OpenAI API
   Text via POST /api/books/:id/back-cover[/suggest]; only drawn when a headline is saved.
 - Books: book.name (fallback cover.title → theme); GET /api/books lists status per book; POST /api/books/:id/meta renames;
   DELETE /api/books/:id cancels pending batches then removes the folder. UI is hash-routed: #/ list, #/new, #/book/<id>.
+- Kindle (lib/epub.js): fixed-layout EPUB 3 (rendition:layout pre-paginated, 1240x1600 pages, original-resolution meta),
+  own ZIP writer (mimetype stored first). POST /api/books/:id/epub → kindle.epub + kindle-cover.jpg (1600 wide). Validated with EPUBCheck 5.1.
 - Cost estimates: lib/cost.js (community token formula; real `usage` used when returned).
 - Output: output/<book-id>/{book.json,pages/,cover/,interior.pdf,cover.pdf,listing.txt}. Secrets in .env (gitignored).

@@ -76,6 +76,7 @@ function renderBook() {
   renderCovers();
   renderBatches();
   renderPdfLinks();
+  renderEpubLinks();
   renderListing();
   renderBack();
   $('bookStyle').value = book.styleNotes || '';
@@ -354,6 +355,32 @@ async function copy(text, btn) {
 $('copyDescBtn').onclick = (e) => copy($('lDesc').value, e.target);
 $('copyKwBtn').onclick = (e) => copy(currentKeywords().join('\n'), e.target);
 
+// ---------- Kindle eBook ----------
+
+function renderEpubLinks(result) {
+  const out = $('epubResult');
+  out.innerHTML = '';
+  const add = (html, cls) => { const d = document.createElement('div'); d.innerHTML = html; if (cls) d.className = cls; out.appendChild(d); };
+  const epub = result?.epub?.url || book.pdfs?.epub;
+  const kc = result?.kindleCover?.url || book.pdfs?.kindleCover;
+  if (epub) add(`<a class="button" href="${epub}" download>Download kindle.epub</a> ${result?.epub ? `<span class="hint">${result.epub.pages} pages${result.epub.hasCover ? ' + cover' : ''}, ${result.epub.sizeMB} MB</span>` : ''}`);
+  if (kc) add(`<a class="button" href="${kc}" target="_blank">Open kindle-cover.jpg</a> <span class="hint">upload this as the eBook cover in KDP</span>`);
+  if (result?.missingPages) add(`${result.missingPages} page(s) aren't generated yet and were left out.`, 'warn');
+  for (const w of result?.warnings || []) add(w, 'warn');
+  if (epub) add(`Saved in <code>output/${book.id}/</code>. In KDP: create a <b>Kindle eBook</b>, upload kindle.epub as the manuscript and kindle-cover.jpg as the cover, then check it in the previewer.`, 'hint');
+}
+
+$('epubBtn').onclick = async () => {
+  const btn = $('epubBtn');
+  btn.disabled = true; btn.textContent = 'Building eBook…';
+  try {
+    const r = await api(`/api/books/${book.id}/epub`, { cleanLines: $('cleanLines').checked });
+    book.pdfs = { ...(book.pdfs || {}), epub: r.epub.url, kindleCover: r.kindleCover?.url || book.pdfs?.kindleCover };
+    renderEpubLinks(r);
+  } catch (e) { alert(e.message); }
+  finally { btn.disabled = false; btn.textContent = 'Build kindle.epub'; }
+};
+
 // ---------- style + back cover ----------
 
 $('saveStyleBtn').onclick = async (e) => {
@@ -430,7 +457,7 @@ $('createBtn').onclick = async () => {
 
 // ---------- books list, routing, delete ----------
 
-const BOOK_SECTIONS = ['bookHeader', 'pagesSection', 'coverSection', 'backSection', 'pdfSection', 'listingSection'];
+const BOOK_SECTIONS = ['bookHeader', 'pagesSection', 'coverSection', 'backSection', 'pdfSection', 'epubSection', 'listingSection'];
 const ALL_VIEWS = ['booksView', 'setup', ...BOOK_SECTIONS];
 const AUDIENCE_LABEL = { kids: 'Kids 4–8', teens: 'Teens', adults: 'Adults' };
 let allBooks = [];
@@ -457,7 +484,7 @@ function renderBooksTable() {
       <td>${esc(AUDIENCE_LABEL[b.audience] || b.audience || '')}</td>
       <td class="num">${pages}${b.batchPending ? '<span class="pill wait">batch running</span>' : ''}</td>
       <td>${b.coverSelected ? '<span class="pill ok">chosen</span>' : '<span class="pill">—</span>'}</td>
-      <td>${b.interiorPdf ? '<span class="pill ok">interior</span>' : ''}${b.coverPdf ? '<span class="pill ok">cover</span>' : ''}${!b.interiorPdf && !b.coverPdf ? '<span class="pill">—</span>' : ''}</td>
+      <td>${b.interiorPdf ? '<span class="pill ok">interior</span>' : ''}${b.coverPdf ? '<span class="pill ok">cover</span>' : ''}${b.epub ? '<span class="pill ok">epub</span>' : ''}${!b.interiorPdf && !b.coverPdf && !b.epub ? '<span class="pill">—</span>' : ''}</td>
       <td>${b.listing ? '<span class="pill ok">ready</span>' : '<span class="pill">—</span>'}</td>
       <td class="num">${money(b.spend)}</td>
       <td class="num">${esc(new Date(b.createdAt).toLocaleDateString())}</td>

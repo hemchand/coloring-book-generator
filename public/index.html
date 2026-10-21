@@ -108,7 +108,7 @@
     <div id="booksEmpty" class="hint hidden" style="margin-top:12px">No books yet. Click <b>+ New Book</b> to start one.</div>
     <div class="tablewrap">
       <table class="books" id="booksTable">
-        <thead><tr><th>Book</th><th>Audience</th><th>Pages</th><th>Cover</th><th>PDFs</th><th>Listing</th><th>Spend (est.)</th><th>Created</th><th></th></tr></thead>
+        <thead><tr><th>Book</th><th>Audience</th><th>Pages</th><th>Cover</th><th>Files</th><th>Listing</th><th>Spend (est.)</th><th>Created</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -243,6 +243,16 @@
       <span class="hint">Pages are upscaled to 300 DPI and placed inside KDP margins. The cover is a full wrap: back + spine + front, with 0.125" bleed.</span>
     </div>
     <div class="result" id="pdfResult"></div>
+  </section>
+
+  <section id="epubSection" class="hidden">
+    <h2>4b · Kindle eBook (EPUB)</h2>
+    <p class="hint" style="margin:0">A fixed-layout EPUB that KDP accepts for Kindle eBooks: the front cover, then one picture per screen (no blank backs). It also creates <code>kindle-cover.jpg</code> for KDP's separate eBook cover upload. Title, description and author (your brand) come from the listing and back-cover fields. No AI cost.</p>
+    <div class="actions">
+      <button id="epubBtn" class="primary">Build kindle.epub</button>
+      <span class="hint">Uses the "Clean lines" setting from step 4.</span>
+    </div>
+    <div class="result" id="epubResult"></div>
   </section>
   <section id="listingSection" class="hidden">
     <h2>5 · Amazon listing — description &amp; keywords</h2>

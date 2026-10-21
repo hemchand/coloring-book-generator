@@ -34,6 +34,7 @@ The app opens on **My books**, a table of every book with its page progress, cho
 3. **Cover:** make a few **Draft (low)** covers to find a layout you like, then one **Final (medium)**. Click **Use for PDF** on the one you want.
 3b. **Back cover:** click **Suggest text with AI** for a headline, subheadline and tagline, or type your own. The brand defaults to `BRAND_NAME` in `.env`. Optionally choose which 4 pages to show; otherwise the app picks pages without a ⚠ badge. The back cover has the headline at the top, 4 of your real pages on tilted cards, the tagline and your brand. It uses the colour along the front cover's edge, and KDP's barcode box (bottom-right) is left empty. No image cost.
 4. **PDFs:** choose the trim size and paper, then click **Build interior.pdf + cover.pdf**. Both files are saved in `output/<book>/`. Upload them to KDP and say the images are AI-generated.
+4b. **Kindle eBook:** click **Build kindle.epub**. It makes a fixed-layout EPUB (front cover, then one picture per screen, no blank backs), which KDP accepts as an eBook manuscript, plus `kindle-cover.jpg` for KDP's separate eBook cover upload. Title, description and author come from the listing and back-cover brand. It passes EPUBCheck with no errors. No AI cost.
 5. **Amazon listing:** click **Generate description & keywords**. The text model writes:
    - a 150–250 word description, using only the HTML tags KDP accepts
    - 7 keywords, one per KDP box, 50 characters max, with no trademarks or promotional words
@@ -65,7 +66,8 @@ Per-image estimates use the community-measured gpt-image-2 token formula (`lib/c
 server.js        web server, OpenAI calls, Batch API, PDF routes
 lib/cost.js      cost estimates
 lib/pdf.js       interior/cover PDF builder and line-art check
+lib/epub.js      fixed-layout EPUB 3 builder for Kindle (+ eBook cover JPEG)
 lib/fonts/       Fredoka Bold (SIL Open Font License), embedded in cover PDFs
 public/          the web page
-output/<book>/   book.json, pages/, cover/, interior.pdf, cover.pdf, listing.txt   (not committed)
+output/<book>/   book.json, pages/, cover/, interior.pdf, cover.pdf, kindle.epub, kindle-cover.jpg, listing.txt   (not committed)
 ```

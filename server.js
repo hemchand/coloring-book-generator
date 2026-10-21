@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { estimateImageCost, imageOutputTokens } from './lib/cost.js';
 import { buildInteriorPdf, buildCoverPdf, checkLineArt, interiorPageCount, TRIMS } from './lib/pdf.js';
+import { buildFixedLayoutEpub, buildKindleCoverJpg } from './lib/epub.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 loadEnv(path.join(ROOT, '.env'));
@@ -489,6 +490,7 @@ async function listBooks() {
       coverSelected: Boolean(b.cover?.selected),
       interiorPdf: existsSync(path.join(OUTPUT_DIR, id, 'interior.pdf')),
       coverPdf: existsSync(path.join(OUTPUT_DIR, id, 'cover.pdf')),
+      epub: existsSync(path.join(OUTPUT_DIR, id, 'kindle.epub')),
       listing: Boolean(b.listing),
       spend: +((spend.pages || 0) + (spend.covers || 0) + (spend.ideas || 0)).toFixed(4),
     };
@@ -518,6 +520,8 @@ async function loadBook(id) {
   book.pdfs = {
     interior: existsSync(path.join(dir, 'interior.pdf')) ? `/output/${id}/interior.pdf` : null,
     cover: existsSync(path.join(dir, 'cover.pdf')) ? `/output/${id}/cover.pdf` : null,
+    epub: existsSync(path.join(dir, 'kindle.epub')) ? `/output/${id}/kindle.epub` : null,
+    kindleCover: existsSync(path.join(dir, 'kindle-cover.jpg')) ? `/output/${id}/kindle-cover.jpg` : null,
   };
   book.spend.total = +(book.spend.pages + book.spend.covers + book.spend.ideas).toFixed(4);
   book.name = bookName(book);
@@ -726,6 +730,34 @@ async function handleApi(req, res, url) {
       return sendJson(res, 200, { listing, file: `/output/${id}/listing.txt` });
     }
 
+    // Kindle eBook: fixed-layout EPUB 3 (cover page + one page per picture) and the separate eBook cover JPEG.
+    if (req.method === 'POST' && parts[3] === 'epub') {
+      const { cleanLines = true } = await readBody(req);
+      const book = await loadBook(id);
+      const ready = book.pages.filter((p) => p.url);
+      if (!ready.length) throw new HttpError(400, 'No pages generated yet');
+      const pages = await Promise.all(ready.map((p) => fs.readFile(path.join(dir, 'pages', pageFile(p.index)))));
+      const selected = book.cover?.selected;
+      const cover = selected && existsSync(path.join(dir, 'cover', selected)) ? await fs.readFile(path.join(dir, 'cover', selected)) : null;
+      const title = (book.listing?.title || book.cover?.title || book.name).trim();
+      const description = String(book.listing?.descriptionHtml || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const author = (book.backCover?.brand || BRAND_NAME).trim();
+      const epub = await buildFixedLayoutEpub({ title, author, description, cover, pages, cleanLines });
+      await fs.writeFile(path.join(dir, 'kindle.epub'), epub.bytes);
+      const result = {
+        epub: { url: `/output/${id}/kindle.epub?v=${Date.now()}`, pages: epub.pages, sizeMB: epub.sizeMB, hasCover: epub.hasCover },
+        missingPages: book.pages.length - ready.length,
+        warnings: [],
+      };
+      if (cover) {
+        await fs.writeFile(path.join(dir, 'kindle-cover.jpg'), await buildKindleCoverJpg(cover));
+        result.kindleCover = { url: `/output/${id}/kindle-cover.jpg?v=${Date.now()}` };
+      } else {
+        result.warnings.push('No cover selected, so the eBook has no cover page and no kindle-cover.jpg. Click "Use for PDF" under a cover and build again.');
+      }
+      return sendJson(res, 200, result);
+    }
+
     // Build interior.pdf and (if a cover is chosen) cover.pdf.
     if (req.method === 'POST' && parts[3] === 'pdf') {
       const { trim = '8.5x11', blankBacks = true, cleanLines = true, paper = 'white' } = await readBody(req);
@@ -770,7 +802,7 @@ async function handleApi(req, res, url) {
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css',
-  '.png': 'image/png', '.json': 'application/json', '.pdf': 'application/pdf', '.txt': 'text/plain; charset=utf-8',
+  '.png': 'image/png', '.json': 'application/json', '.pdf': 'application/pdf', '.epub': 'application/epub+zip', '.jpg': 'image/jpeg', '.txt': 'text/plain; charset=utf-8',
 };
 
 async function serveStatic(res, baseDir, relPath) {
